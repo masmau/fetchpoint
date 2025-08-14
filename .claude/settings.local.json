@@ -12,7 +12,8 @@
       "WebSearch",
       "WebFetch(domain:packaging.python.org)",
       "WebFetch(domain:github.com)",
-      "Bash(uv lock:*)"
+      "Bash(uv lock:*)",
+      "WebFetch(domain:docs.astral.sh)"
     ],
     "deny": []
   }

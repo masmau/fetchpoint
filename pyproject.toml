@@ -1,8 +1,36 @@
 [project]
+name = "fetchpoint"
+description = "A modern SharePoint client library for Python with federated authentication support"
 authors = [
   {name = "Massimo Mauri"},
 ]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10,<3.14"
 dynamic = ["version"]
+keywords = [
+  "sharepoint",
+  "office365",
+  "federated-authentication",
+  "azure-ad",
+  "document-management",
+  "excel",
+  "enterprise",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
 dependencies = [
   "click>=8.2.1",
   "httpx>=0.28.1",
@@ -11,10 +39,12 @@ dependencies = [
   "pandas>=2.3.0",
   "pydantic>=2.11.7",
 ]
-description = "fetchpoint"
-name = "fetchpoint"
-readme = "README.md"
-requires-python = ">=3.10,<3.14"
+
+[project.urls]
+Homepage = "https://github.com/masmau/fetchpoint"
+Repository = "https://github.com/masmau/fetchpoint"
+Issues = "https://github.com/masmau/fetchpoint/issues"
+Documentation = "https://github.com/masmau/fetchpoint#readme"
 
 [project.scripts]
 tbd = "fetchpoint.tbd_cli:cli"

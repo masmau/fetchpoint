@@ -299,6 +299,15 @@ import fetchpoint
 print(fetchpoint.__version__)  # e.g., "0.2.0"
 ```
 
+### Publishing Quick Reference
+
+```bash
+just validate
+rm -rf dist/
+uv build --wheel && uv build --sdist
+uv publish --token $PYPI_TOKEN
+```
+
 ## Roadmap
 
 - Download a single file by path
