@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from .authenticator import create_authenticated_context
 from .config import SharePointAuthConfig, create_config_from_dict, load_sharepoint_paths
-from .exceptions import ConnectionError, FileDownloadError, FileNotFoundError, PermissionError
+from .exceptions import ConnectionError, FileDownloadError, FileNotFoundError, FileSizeLimitError, PermissionError
 from .file_handler import (
     create_file_info,
     list_excel_files_by_path_segments,
@@ -1120,6 +1120,189 @@ class SharePointClient:
         logger.info("Download completed: %d/%d files successful", successful_downloads, len(filenames))
 
         return results
+
+    def get_file_content(self, library: str, path: list[str]) -> bytes:
+        """
+        Get file content as bytes from SharePoint without downloading to disk.
+
+        This method reads a file directly from SharePoint and returns its content
+        as bytes, suitable for in-memory processing of Excel files or other content.
+
+        Args:
+            library: SharePoint library name (e.g., "Documents")
+            path: Path segments to the file (e.g., ["General", "Reports", "file.xlsx"])
+
+        Returns:
+            File content as bytes
+
+        Raises:
+            ConnectionError: If not connected to SharePoint
+            FileNotFoundError: If file not found
+            FileDownloadError: If content reading fails
+            FileSizeLimitError: If file exceeds size limit
+
+        Example:
+            content = client.get_file_content(
+                library="Documents",
+                path=["General", "Reports", "data.xlsx"]
+            )
+            # content is now bytes that can be processed in memory
+        """
+        if not self._is_connected or self._context is None:
+            raise ConnectionError(
+                "Not connected to SharePoint. Call connect() first.", site_url=self._config.sharepoint_url
+            )
+
+        self.logger.info("Reading file content from %s: %s", library, " -> ".join(path))
+
+        # The last element is the filename
+        *folder_segments, filename = path
+
+        # Get file item
+        file_item = self._get_file_item(library, folder_segments, filename)
+        if file_item is None:
+            raise FileNotFoundError(f"File not found: {'/'.join(path)}", "/".join(path))
+
+        # Check file size before downloading
+        try:
+            self._context.load(file_item, ["Length"])
+            self._context.execute_query()
+            file_size = getattr(file_item, "Length", 0)
+
+            # Validate file size against configured limit
+            max_size_bytes = self._config.max_file_size_mb * 1024 * 1024
+            if file_size > max_size_bytes:
+                raise FileSizeLimitError(
+                    f"File size {file_size / (1024 * 1024):.1f}MB exceeds limit of {self._config.max_file_size_mb}MB",
+                    file_size,
+                )
+        except Exception as e:
+            if "FileSizeLimitError" in str(type(e)):
+                raise
+            self.logger.warning("Could not check file size: %s", e)
+
+        try:
+            # Use get_content() method to read file content into memory
+            content_result = file_item.get_content()
+            self._context.execute_query()
+
+            # Extract bytes from the result
+            content_bytes = content_result.value
+
+            if not content_bytes:
+                raise FileDownloadError(file_path="/".join(path), reason="File content is empty")
+
+            self.logger.info("Successfully read %d bytes from file: %s", len(content_bytes), filename)
+            return content_bytes
+
+        except Exception as e:
+            raise FileDownloadError(file_path="/".join(path), reason=f"Failed to read file content: {e}") from e
+
+    def read_excel_content(
+        self,
+        library: str,
+        path: list[str],
+        sheet_name: Optional[str] = None,
+        column_mapping: Optional[dict[str, str]] = None,
+        skip_empty_rows: bool = True,
+    ) -> list[dict[str, Any]]:
+        """
+        Read Excel file content directly from SharePoint and return as structured data.
+
+        This method combines file reading and Excel processing to provide a seamless
+        way to extract data from Excel files stored in SharePoint without downloading
+        them to disk first.
+
+        Args:
+            library: SharePoint library name (e.g., "Documents")
+            path: Path segments to the Excel file (e.g., ["General", "Reports", "data.xlsx"])
+            sheet_name: Optional sheet name to read. If None, reads the first sheet.
+            column_mapping: Optional dictionary to rename columns {"old_name": "new_name"}
+            skip_empty_rows: Whether to skip rows where all values are empty/null
+
+        Returns:
+            List of dictionaries representing Excel rows, with column names as keys
+
+        Raises:
+            ConnectionError: If not connected to SharePoint
+            FileNotFoundError: If file not found
+            FileDownloadError: If content reading fails
+            ValueError: If Excel processing fails
+
+        Example:
+            data = client.read_excel_content(
+                library="Documents",
+                path=["General", "Reports", "monthly_data.xlsx"],
+                sheet_name="Summary",
+                column_mapping={"Employee Name": "employee_name", "Salary": "salary"}
+            )
+            # data is now a list of dicts: [{"employee_name": "John", "salary": 50000}, ...]
+        """
+        from .excel_reader import ExcelReader
+
+        # Get file content as bytes
+        content_bytes = self.get_file_content(library, path)
+
+        # Use ExcelReader to process the content
+        excel_reader = ExcelReader()
+        try:
+            data = excel_reader.read_from_bytes(
+                content=content_bytes,
+                sheet_name=sheet_name,
+                column_mapping=column_mapping,
+                skip_empty_rows=skip_empty_rows,
+            )
+
+            self.logger.info("Successfully processed Excel data: %d rows from %s", len(data), path[-1])
+            return data
+
+        except Exception as e:
+            self.logger.error("Failed to process Excel content: %s", e)
+            raise ValueError(f"Error processing Excel file: {e}") from e
+
+    def get_excel_sheet_names(self, library: str, path: list[str]) -> list[str]:
+        """
+        Get list of sheet names from an Excel file in SharePoint.
+
+        This method reads an Excel file from SharePoint and returns the names of
+        all sheets in the workbook, useful for sheet selection in read operations.
+
+        Args:
+            library: SharePoint library name (e.g., "Documents")
+            path: Path segments to the Excel file (e.g., ["General", "Reports", "data.xlsx"])
+
+        Returns:
+            List of sheet names in the Excel file
+
+        Raises:
+            ConnectionError: If not connected to SharePoint
+            FileNotFoundError: If file not found
+            FileDownloadError: If content reading fails
+            ValueError: If Excel processing fails
+
+        Example:
+            sheets = client.get_excel_sheet_names(
+                library="Documents",
+                path=["General", "Reports", "workbook.xlsx"]
+            )
+            # sheets: ["Sheet1", "Summary", "Details"]
+        """
+        from .excel_reader import ExcelReader
+
+        # Get file content as bytes
+        content_bytes = self.get_file_content(library, path)
+
+        # Use ExcelReader to get sheet names
+        excel_reader = ExcelReader()
+        try:
+            sheet_names = excel_reader.get_sheet_names_from_bytes(content_bytes)
+
+            self.logger.info("Found %d sheets in Excel file %s: %s", len(sheet_names), path[-1], sheet_names)
+            return sheet_names
+
+        except Exception as e:
+            self.logger.error("Failed to get Excel sheet names: %s", e)
+            raise ValueError(f"Error reading Excel file sheets: {e}") from e
 
     def get_file_details(self, library_name: str, folder_path: Optional[str], filename: str) -> Optional[FileInfo]:
         """

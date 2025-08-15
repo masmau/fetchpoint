@@ -26,7 +26,7 @@ from .exceptions import (
     PermissionError,
     SharePointError,
 )
-from .models import FileInfo, FileType, SharePointAuthConfig
+from .models import ColumnMapping, ExcelData, FileInfo, FileType, SharePointAuthConfig
 
 __all__ = [
     # Main API
@@ -37,6 +37,9 @@ __all__ = [
     # File operations
     "FileInfo",
     "FileType",
+    # Excel operations
+    "ExcelData",
+    "ColumnMapping",
     # Authentication
     "create_authenticated_context",
     # Exceptions
@@ -55,4 +58,4 @@ __all__ = [
     "load_sharepoint_config",
 ]
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"

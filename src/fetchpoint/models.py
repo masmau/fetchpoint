@@ -9,9 +9,9 @@ import re
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union
 
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 
 class FileType(str, Enum):
@@ -339,3 +339,240 @@ class FileInfo(BaseModel):
         max_size_bytes = config.max_file_size_mb * 1024 * 1024
         if self.size_bytes > max_size_bytes:
             raise ValueError(f"File size {self.size_mb}MB exceeds maximum limit of {config.max_file_size_mb}MB")
+
+
+class ExcelData(BaseModel):
+    """
+    Model for Excel file data extracted from SharePoint.
+
+    This model represents the structured data extracted from an Excel file,
+    including metadata about the extraction process and the actual data rows.
+    """
+
+    # File metadata
+    filename: str = Field(..., description="Original Excel file name")
+
+    sheet_name: str = Field(..., description="Name of the sheet that was read")
+
+    # Data content
+    data: list[dict[str, Any]] = Field(..., description="List of dictionaries representing Excel rows")
+
+    # Processing metadata
+    row_count: int = Field(..., description="Number of data rows extracted", ge=0)
+
+    column_names: list[str] = Field(..., description="List of column names after any mapping is applied")
+
+    # Optional processing information
+    column_mapping_applied: Optional[dict[str, str]] = Field(
+        default=None, description="Column mapping that was applied during extraction"
+    )
+
+    empty_rows_skipped: int = Field(default=0, description="Number of empty rows that were skipped", ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_data_structure(cls, values: Any) -> Any:
+        """
+        Validate that data is a list of dictionaries.
+
+        Args:
+            values: Raw input values before Pydantic processing
+
+        Returns:
+            Validated values
+
+        Raises:
+            ValueError: If data structure is invalid
+        """
+        if isinstance(values, dict) and "data" in values:
+            data = values["data"]  # type: ignore[misc]
+            if not isinstance(data, list):
+                raise ValueError("Data must be a list")
+
+            for i, row in enumerate(data):  # type: ignore[misc]
+                if not isinstance(row, dict):
+                    raise ValueError(f"Row {i} must be a dictionary")
+
+        return values  # type: ignore[misc]
+
+    @field_validator("row_count")
+    @classmethod
+    def validate_row_count_matches_data(cls, v: int, info: Any) -> int:
+        """
+        Validate that row_count matches the actual data length.
+
+        Args:
+            v: Row count value
+            info: Validation info context
+
+        Returns:
+            Validated row count
+
+        Raises:
+            ValueError: If row count doesn't match data length
+        """
+        # In Pydantic v2, we can access other field values through info.data
+        if hasattr(info, "data") and info.data and "data" in info.data:
+            data_length = len(info.data["data"]) if info.data["data"] else 0
+            if data_length != v:
+                raise ValueError(f"Row count {v} doesn't match data length {data_length}")
+        return v
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Check if the Excel data is empty.
+
+        Returns:
+            True if no data rows were extracted
+        """
+        return self.row_count == 0
+
+    @property
+    def column_count(self) -> int:
+        """
+        Get the number of columns in the data.
+
+        Returns:
+            Number of columns
+        """
+        return len(self.column_names)
+
+    def get_column_data(self, column_name: str) -> list[Any]:
+        """
+        Extract all values for a specific column.
+
+        Args:
+            column_name: Name of the column to extract
+
+        Returns:
+            List of values from the specified column
+
+        Raises:
+            ValueError: If column name doesn't exist
+        """
+        if column_name not in self.column_names:
+            raise ValueError(f"Column '{column_name}' not found in data")
+
+        return [row.get(column_name) for row in self.data]
+
+    def filter_rows(self, condition: Callable[[dict[str, Any]], bool]) -> "ExcelData":
+        """
+        Create a new ExcelData with rows filtered by a condition.
+
+        Args:
+            condition: Function that takes a row dict and returns bool
+
+        Returns:
+            New ExcelData instance with filtered data
+        """
+        filtered_data = [row for row in self.data if condition(row)]
+
+        return ExcelData(
+            filename=self.filename,
+            sheet_name=self.sheet_name,
+            data=filtered_data,
+            row_count=len(filtered_data),
+            column_names=self.column_names,
+            column_mapping_applied=self.column_mapping_applied,
+            empty_rows_skipped=self.empty_rows_skipped,
+        )
+
+
+class ColumnMapping(BaseModel):
+    """
+    Model for Excel column name mapping configuration.
+
+    This model defines how Excel column names should be transformed during
+    the data extraction process, allowing for standardization of field names
+    across different Excel file formats.
+    """
+
+    # Core mapping configuration
+    mappings: dict[str, str] = Field(..., description="Dictionary mapping original column names to new names")
+
+    # Optional configuration
+    case_sensitive: bool = Field(default=True, description="Whether column name matching should be case sensitive")
+
+    ignore_missing: bool = Field(default=True, description="Whether to ignore mapping entries for non-existent columns")
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_mappings(cls, values: Any) -> Any:
+        """
+        Validate mapping dictionary structure.
+
+        Args:
+            values: Raw input values before Pydantic processing
+
+        Returns:
+            Validated values
+
+        Raises:
+            ValueError: If mappings are invalid
+        """
+        if isinstance(values, dict) and "mappings" in values:
+            mappings = values["mappings"]  # type: ignore[misc]
+            if not isinstance(mappings, dict):
+                raise ValueError("Mappings must be a dictionary")
+
+            for original, mapped in mappings.items():  # type: ignore[misc]
+                if not isinstance(original, str) or not isinstance(mapped, str):
+                    raise ValueError("Both original and mapped column names must be strings")
+
+                if not original.strip() or not mapped.strip():
+                    raise ValueError("Column names cannot be empty or whitespace-only")
+
+        return values  # type: ignore[misc]
+
+    def apply_to_columns(self, column_names: list[str]) -> dict[str, str]:
+        """
+        Apply the mapping to a list of column names and return the applicable mappings.
+
+        Args:
+            column_names: List of original column names
+
+        Returns:
+            Dictionary of mappings that apply to the given columns
+
+        Raises:
+            ValueError: If ignore_missing is False and some mappings don't apply
+        """
+        applicable_mappings = {}
+        missing_columns = []
+
+        for original, mapped in self.mappings.items():
+            # Check for column existence (case sensitive or not)
+            if self.case_sensitive:
+                if original in column_names:
+                    applicable_mappings[original] = mapped
+                else:
+                    missing_columns.append(original)  # type: ignore[misc]
+            else:
+                # Case insensitive matching
+                matching_column = None
+                for col in column_names:
+                    if col.lower() == original.lower():
+                        matching_column = col
+                        break
+
+                if matching_column:
+                    applicable_mappings[matching_column] = mapped
+                else:
+                    missing_columns.append(original)  # type: ignore[misc]
+
+        # Handle missing columns based on configuration
+        if missing_columns and not self.ignore_missing:
+            raise ValueError(f"Mapping columns not found: {', '.join(missing_columns)}")  # type: ignore[misc]
+
+        return applicable_mappings  # type: ignore[misc]
+
+    @property
+    def mapping_count(self) -> int:
+        """
+        Get the number of mappings defined.
+
+        Returns:
+            Number of column mappings
+        """
+        return len(self.mappings)
