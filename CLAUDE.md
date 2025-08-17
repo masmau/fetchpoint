@@ -108,9 +108,11 @@ path = "src/fetchpoint/__init__.py"
 
 - `office365-rest-python-client>=2.6.2` - SharePoint API client
 - `pydantic>=2.11.7` - Data validation
+- `pandas>=2.3.0` - Excel data processing and manipulation
+- `openpyxl>=3.1.5` - Excel file reading and writing
+- `httpx>=0.28.1` - HTTP client for API requests
 - `click>=8.2.1` - CLI framework
 - `python-dotenv>=1.1.1` - Environment variable loading (optional)
-- `openpyxl>=3.1.5` - Excel file processing
 
 ### Design Principles
 

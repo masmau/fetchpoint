@@ -46,9 +46,6 @@ Repository = "https://github.com/masmau/fetchpoint"
 Issues = "https://github.com/masmau/fetchpoint/issues"
 Documentation = "https://github.com/masmau/fetchpoint#readme"
 
-[project.scripts]
-tbd = "fetchpoint.tbd_cli:cli"
-
 [build-system]
 build-backend = "hatchling.build"
 requires = ["hatchling"]

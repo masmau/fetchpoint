@@ -119,10 +119,10 @@ Main client class for SharePoint operations.
 
 - Clean up connection and resources
 
-**`list_excel_files(library_name: str, folder_path: str) -> list[str]`**
+**`list_excel_files(library_name: str = "Documents", folder_path: Optional[str] = None) -> list[str]`**
 
 - List Excel file names in specified location
-- Args: `library_name` (default: "Documents"), `folder_path` (e.g., "General/Reports")
+- Args: `library_name` (default: "Documents"), `folder_path` (optional, e.g., "General/Reports")
 - Returns: List of Excel filenames
 
 **`list_files(library: str, path: list[str]) -> list[FileInfo]`**
@@ -131,9 +131,10 @@ Main client class for SharePoint operations.
 - Args: `library` name, `path` segments
 - Returns: List of FileInfo objects with metadata
 
-**`list_folders(library_name: str, folder_path: str) -> list[str]`**
+**`list_folders(library_name: str = "Documents", folder_path: Optional[str] = None) -> list[str]`**
 
 - List folder names in specified location
+- Args: `library_name` (default: "Documents"), `folder_path` (optional)
 - Returns: List of folder names
 
 **`download_file(library: str, path: list[str], local_path: str) -> None`**
@@ -146,20 +147,47 @@ Main client class for SharePoint operations.
 - Download multiple files with per-file error handling
 - Returns: Dictionary with success/failure status for each file
 
-**`get_file_details(library_name: str, folder_path: str, filename: str) -> FileInfo`**
+**`get_file_details(library_name: str, folder_path: Optional[str], filename: str) -> Optional[FileInfo]`**
 
 - Get comprehensive file metadata
-- Returns: FileInfo object with complete metadata
+- Args: `library_name`, `folder_path` (optional), `filename`
+- Returns: FileInfo object with complete metadata, or None if file not found
 
-**`validate_paths(library_name: str) -> dict`**
+**`validate_paths(library_name: str = "Documents") -> dict`**
 
 - Validate configured SharePoint paths
+- Args: `library_name` (default: "Documents")
 - Returns: Validation results with error details and available folders
 
-**`discover_structure(library_name: str, max_depth: int) -> dict`**
+**`discover_structure(library_name: str = "Documents", max_depth: int = 3) -> dict`**
 
 - Explore SharePoint library structure
+- Args: `library_name` (default: "Documents"), `max_depth` (default: 3)
 - Returns: Hierarchical representation of folders and files
+
+**`validate_decoupled_paths() -> dict`**
+
+- Validate paths that span different SharePoint libraries
+- Each path uses its own library name (first segment)
+- Returns: Validation results with library-specific error details
+
+**`get_file_content(library: str, path: list[str]) -> bytes`**
+
+- Get file content as bytes without downloading to disk
+- Args: `library` name, `path` segments including filename
+- Returns: File content as bytes for in-memory processing
+
+**`read_excel_content(library: str, path: list[str], sheet_name: Optional[str] = None, column_mapping: Optional[dict[str, str]] = None, skip_empty_rows: bool = True) -> list[dict[str, Any]]`**
+
+- Read Excel file directly from SharePoint as structured data
+- Args: `library`, `path`, optional `sheet_name`, `column_mapping`, `skip_empty_rows`
+- Returns: List of dictionaries representing Excel rows
+
+**`get_excel_sheet_names(library: str, path: list[str]) -> list[str]`**
+
+- Get list of sheet names from an Excel file in SharePoint
+- Args: `library` name, `path` segments including filename
+- Returns: List of sheet names in the workbook
 
 ### Configuration Functions
 
@@ -185,7 +213,7 @@ Main client class for SharePoint operations.
 **`FileInfo`**
 
 - File metadata model
-- Fields: `name`, `size_bytes`, `size_mb`, `created_date`, `modified_date`, `file_type`, `library_name`, `folder_path`, `created_by`, `modified_by`
+- Fields: `name`, `size_bytes`, `size_mb`, `created_date`, `modified_date`, `file_type`, `library`, `relative_path`, `created_by`, `modified_by`
 
 **`FileType`**
 
@@ -207,6 +235,62 @@ All exceptions inherit from `SharePointError`:
 - **`LibraryNotFoundError`**: Document library not found
 - **`InvalidFileTypeError`**: Unsupported file type
 
+## Excel Operations
+
+FetchPoint provides powerful Excel processing capabilities for direct data extraction from SharePoint:
+
+### Reading Excel Data
+
+```python
+with SharePointClient(config) as client:
+    # Read Excel file as structured data
+    data = client.read_excel_content(
+        library="Documents",
+        path=["General", "Reports", "monthly_data.xlsx"],
+        sheet_name="Summary",  # Optional: specify sheet
+        column_mapping={"Employee Name": "employee_name", "Salary": "salary"},  # Optional: rename columns
+        skip_empty_rows=True  # Optional: skip empty rows
+    )
+    
+    # data is now a list of dictionaries
+    for row in data:
+        print(f"Employee: {row['employee_name']}, Salary: {row['salary']}")
+```
+
+### Working with Excel Sheets
+
+```python
+with SharePointClient(config) as client:
+    # Get all sheet names in a workbook
+    sheets = client.get_excel_sheet_names(
+        library="Documents",
+        path=["General", "Reports", "workbook.xlsx"]
+    )
+    print(f"Available sheets: {sheets}")
+    
+    # Read specific sheet
+    data = client.read_excel_content(
+        library="Documents",
+        path=["General", "Reports", "workbook.xlsx"],
+        sheet_name=sheets[0]  # Use first sheet
+    )
+```
+
+### In-Memory Processing
+
+```python
+with SharePointClient(config) as client:
+    # Get file content without downloading
+    content_bytes = client.get_file_content(
+        library="Documents",
+        path=["General", "Reports", "data.xlsx"]
+    )
+    
+    # Process bytes with other libraries or save locally
+    with open("local_file.xlsx", "wb") as f:
+        f.write(content_bytes)
+```
+
 ## Security
 
 - Passwords stored as `SecretStr` (Pydantic)
@@ -225,7 +309,7 @@ try:
         files = client.list_excel_files("Documents", "NonExistent/Path")
 except LibraryNotFoundError as e:
     print(f"Library error: {e}")
-    print(f"Available folders: {e.available_folders}")
+    print(f"Available libraries: {e.context.get('available_libraries', [])}")
 ```
 
 ## Development
@@ -310,8 +394,9 @@ uv publish --token $PYPI_TOKEN
 
 ## Roadmap
 
-- Download a single file by path
-- Handle filetypes
+- Enhanced Excel processing capabilities
+- Batch operations for large datasets
+- Advanced filtering and search features
 
 ## License
 
