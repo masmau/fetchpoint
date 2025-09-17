@@ -53,13 +53,20 @@ class AuthenticationError(SharePointError):
     This covers general authentication failures but not federated auth specific issues.
     """
 
-    def __init__(self, message: str, username: Optional[str] = None, site_url: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        username: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        site_url: Optional[str] = None,
+    ) -> None:
         """
         Initialize authentication error.
 
         Args:
             message: Error description
             username: Masked username (first 3 chars + ***)
+            tenant_id: Azure AD tenant ID for MSAL authentication
             site_url: SharePoint site URL
         """
         context: dict[str, Any] = {}
@@ -67,6 +74,8 @@ class AuthenticationError(SharePointError):
             # Mask username for security - show only first 3 chars
             masked_username = username[:3] + "***" if len(username) > 3 else "***"
             context["username"] = masked_username
+        if tenant_id:
+            context["tenant_id"] = tenant_id
         if site_url:
             context["site_url"] = site_url
 
@@ -84,6 +93,7 @@ class FederatedAuthError(AuthenticationError):
         self,
         message: str,
         username: Optional[str] = None,
+        tenant_id: Optional[str] = None,
         site_url: Optional[str] = None,
         auth_provider: Optional[str] = None,
     ) -> None:
@@ -93,10 +103,11 @@ class FederatedAuthError(AuthenticationError):
         Args:
             message: Error description
             username: Masked username
+            tenant_id: Azure AD tenant ID for MSAL authentication
             site_url: SharePoint site URL
             auth_provider: Identity provider name (e.g., 'Azure AD')
         """
-        super().__init__(message, username, site_url)
+        super().__init__(message, username, tenant_id, site_url)
         if auth_provider:
             self.context["auth_provider"] = auth_provider
 

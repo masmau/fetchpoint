@@ -42,7 +42,7 @@ class TestSharePointClient:
         with pytest.raises(ValueError, match="Configuration is required"):
             SharePointClient(None)  # type: ignore[arg-type]
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_connect_success(self, mock_create_context: "MagicMock") -> None:
         """Test successful connection to SharePoint."""
         config = SharePointAuthConfig(
@@ -59,7 +59,7 @@ class TestSharePointClient:
         assert client.context == mock_context
         mock_create_context.assert_called_once_with(config)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_connect_failure(self, mock_create_context: "MagicMock") -> None:
         """Test connection failure handling."""
         config = SharePointAuthConfig(
@@ -87,7 +87,7 @@ class TestSharePointClient:
 
         assert "Not connected to SharePoint" in str(exc_info.value)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_test_connection_success(self, mock_create_context: "MagicMock") -> None:
         """Test successful connection test."""
         config = SharePointAuthConfig(
@@ -109,7 +109,7 @@ class TestSharePointClient:
         mock_context.load.assert_called_once_with(mock_web)
         mock_context.execute_query.assert_called_once()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_test_connection_failure(self, mock_create_context: "MagicMock") -> None:
         """Test connection test failure."""
         config = SharePointAuthConfig(
@@ -129,7 +129,7 @@ class TestSharePointClient:
 
         assert "Connection test failed" in str(exc_info.value)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_disconnect(self, mock_create_context: "MagicMock") -> None:
         """Test disconnection from SharePoint."""
         config = SharePointAuthConfig(
@@ -165,7 +165,7 @@ class TestSharePointClient:
         assert not client.is_connected
         assert client.context is None
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_context_manager_success(self, mock_create_context: "MagicMock") -> None:
         """Test context manager with successful connection."""
         config = SharePointAuthConfig(
@@ -185,7 +185,7 @@ class TestSharePointClient:
         assert not client.is_connected
         assert client.context is None
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_context_manager_with_exception(self, mock_create_context: "MagicMock") -> None:
         """Test context manager properly cleans up on exception."""
         config = SharePointAuthConfig(
@@ -204,7 +204,7 @@ class TestSharePointClient:
         assert not client.is_connected
         assert client.context is None
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_context_manager_connection_failure(self, mock_create_context: "MagicMock") -> None:
         """Test context manager with connection failure."""
         config = SharePointAuthConfig(
@@ -247,7 +247,7 @@ class TestSharePointClient:
         str_repr = str(client)
         assert "ab@***" in str_repr  # Short username with masking (first 3 chars)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_properties(self, mock_create_context: "MagicMock") -> None:
         """Test client properties."""
         config = SharePointAuthConfig(
@@ -261,7 +261,7 @@ class TestSharePointClient:
         # Test initial state
         assert client.config == config
         assert client.config.sharepoint_url == config.sharepoint_url
-        assert client.config.username == config.username
+        assert isinstance(client.config, SharePointAuthConfig) and client.config.username == config.username
         assert not client.is_connected
         assert client.context is None
 
@@ -270,7 +270,7 @@ class TestSharePointClient:
         assert client.is_connected
         assert client.context is mock_context
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_excel_files_by_path_segments")
     def test_list_excel_files_not_connected(
         self, mock_list_files: "MagicMock", mock_create_context: "MagicMock"
@@ -287,7 +287,7 @@ class TestSharePointClient:
         assert "Not connected to SharePoint" in str(exc_info.value)
         mock_list_files.assert_not_called()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_excel_files_by_path_segments")
     def test_list_excel_files_success(self, mock_list_files: "MagicMock", mock_create_context: "MagicMock") -> None:
         """Test successful Excel files listing."""
@@ -307,7 +307,7 @@ class TestSharePointClient:
         assert result == ["file1.xlsx", "file2.xlsx"]
         mock_list_files.assert_called_once_with(mock_context, "Documents", [])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_excel_files_by_path_segments")
     def test_list_excel_files_with_folder_path(
         self, mock_list_files: "MagicMock", mock_create_context: "MagicMock"
@@ -329,7 +329,7 @@ class TestSharePointClient:
         assert result == ["report.xlsx"]
         mock_list_files.assert_called_once_with(mock_context, "MyLibrary", ["General", "Reports"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_folders_in_library")
     def test_list_folders_not_connected(self, mock_list_folders: "MagicMock", mock_create_context: "MagicMock") -> None:
         """Test list_folders when not connected."""
@@ -344,7 +344,7 @@ class TestSharePointClient:
         assert "Not connected to SharePoint" in str(exc_info.value)
         mock_list_folders.assert_not_called()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_folders_in_library")
     def test_list_folders_success(self, mock_list_folders: "MagicMock", mock_create_context: "MagicMock") -> None:
         """Test successful folders listing."""
@@ -363,7 +363,7 @@ class TestSharePointClient:
         assert result == ["Folder1", "Folder2"]
         mock_list_folders.assert_called_once_with(mock_context, "TestLibrary", "some/path")
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.load_sharepoint_paths")
     @patch("fetchpoint.client.PathResolver")
     def test_validate_paths_not_connected(
@@ -381,7 +381,7 @@ class TestSharePointClient:
         assert "Not connected to SharePoint" in str(exc_info.value)
         mock_load_paths.assert_not_called()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.load_sharepoint_paths")
     @patch("fetchpoint.client.PathResolver")
     def test_validate_paths_success(
@@ -418,7 +418,7 @@ class TestSharePointClient:
         mock_path_resolver_class.assert_called_once_with(mock_context, "Documents")
         mock_resolver.validate_path.assert_called_once_with(["General", "Reports"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.load_sharepoint_paths")
     @patch("fetchpoint.client.PathResolver")
     def test_validate_paths_failure(
@@ -453,7 +453,7 @@ class TestSharePointClient:
             }
         }
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.load_sharepoint_paths")
     @patch("fetchpoint.client.PathResolver")
     def test_validate_decoupled_paths_not_connected(
@@ -471,7 +471,7 @@ class TestSharePointClient:
         assert "Not connected to SharePoint" in str(exc_info.value)
         mock_load_paths.assert_not_called()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.load_sharepoint_paths")
     @patch("fetchpoint.client.PathResolver")
     def test_validate_decoupled_paths_success(
@@ -504,7 +504,7 @@ class TestSharePointClient:
         assert result["lib2_path"]["valid"] is True
         assert result["lib2_path"]["library"] == "Library2"
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_folders_in_library")
     @patch("fetchpoint.client.list_files_in_library")
     def test_discover_structure_not_connected(
@@ -523,7 +523,7 @@ class TestSharePointClient:
         mock_list_files.assert_not_called()
         mock_list_folders.assert_not_called()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch("fetchpoint.client.list_folders_in_library")
     @patch("fetchpoint.client.list_files_in_library")
     def test_discover_structure_success(
@@ -566,7 +566,7 @@ class TestSharePointClient:
         mock_list_files.assert_called_with(mock_context, "TestLibrary", None)
         mock_list_folders.assert_called_with(mock_context, "TestLibrary", None)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_download_files_not_connected(self, mock_create_context: "MagicMock") -> None:
         """Test download_files when not connected."""
         config = SharePointAuthConfig(
@@ -579,7 +579,7 @@ class TestSharePointClient:
 
         assert "Not connected to SharePoint" in str(exc_info.value)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_download_files_no_download_dir(self, mock_create_context: "MagicMock") -> None:
         """Test download_files when download_dir is not provided."""
         config = SharePointAuthConfig(
@@ -596,7 +596,7 @@ class TestSharePointClient:
 
         assert "download_dir parameter is required" in str(exc_info.value)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_successful_download(self, mock_create_context: "MagicMock") -> None:
         """Test successful file download."""
@@ -640,7 +640,7 @@ class TestSharePointClient:
                     assert downloaded_file.exists()
                     assert downloaded_file.stat().st_size == 1024
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_file_not_found(self, mock_create_context: "MagicMock") -> None:
         """Test download when file is not found."""
@@ -665,7 +665,7 @@ class TestSharePointClient:
                     assert result["nonexistent.xlsx"]["success"] is False
                     assert "not found" in result["nonexistent.xlsx"]["error"]
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_size_limit_exceeded(self, mock_create_context: "MagicMock") -> None:
         """Test download when file exceeds size limit."""
@@ -697,7 +697,7 @@ class TestSharePointClient:
                     assert result["large_file.xlsx"]["success"] is False
                     assert "exceeds size limit" in result["large_file.xlsx"]["error"]
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_multiple_files_mixed_results(self, mock_create_context: "MagicMock") -> None:
         """Test download of multiple files with mixed success/failure results."""
@@ -769,7 +769,7 @@ class TestSharePointClient:
                         assert result["error.xlsx"]["success"] is False
                         assert "error" in result["error.xlsx"]["error"].lower()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_permission_error(self, mock_create_context: "MagicMock") -> None:
         """Test download when permission error occurs."""
@@ -796,7 +796,7 @@ class TestSharePointClient:
                     assert result["restricted.xlsx"]["success"] is False
                     assert "Permission denied" in result["restricted.xlsx"]["error"]
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     @patch.dict(os.environ, {"DOWNLOAD_PATH": ""})
     def test_download_files_incomplete_download(self, mock_create_context: "MagicMock") -> None:
         """Test download when file is incompletely downloaded."""
@@ -836,7 +836,7 @@ class TestSharePointClient:
                     incomplete_file = Path(temp_dir) / "incomplete.xlsx"
                     assert not incomplete_file.exists()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_item_not_connected(self, mock_create_context: "MagicMock") -> None:
         """Test _get_file_item when not connected."""
         config = SharePointAuthConfig(
@@ -849,7 +849,7 @@ class TestSharePointClient:
 
         assert "SharePoint context is not authenticated" in str(exc_info.value)
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_item_successful(self, mock_create_context: "MagicMock") -> None:
         """Test successful _get_file_item operation."""
         config = SharePointAuthConfig(
@@ -878,7 +878,7 @@ class TestSharePointClient:
         assert result is mock_file_item
         mock_context.web.lists.get_by_title.assert_called_with("Documents")
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_item_file_not_found(self, mock_create_context: "MagicMock") -> None:
         """Test _get_file_item when file is not found."""
         config = SharePointAuthConfig(

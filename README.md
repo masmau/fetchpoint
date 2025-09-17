@@ -79,7 +79,63 @@ client = SharePointClient.from_dict({
 })
 ```
 
-### Method 3: Environment Variables (Legacy)
+### Method 3: MSAL Authentication (App-Only Access)
+
+For app-only access using Azure AD application credentials:
+
+```python
+from fetchpoint import SharePointClient, create_sharepoint_msal_config
+
+# Create MSAL configuration
+config = create_sharepoint_msal_config(
+    client_id="your-azure-app-client-id",        # Required: Azure AD Application (client) ID
+    client_secret="your-azure-app-secret",       # Required: Azure AD Application secret
+    tenant_id="your-azure-tenant-id",            # Required: Azure AD Tenant ID
+    sharepoint_url="https://company.sharepoint.com/sites/yoursite",  # Required: SharePoint site URL
+    timeout_seconds=30,                          # Optional: Connection timeout (default: 30)
+    max_file_size_mb=100                         # Optional: File size limit (default: 100)
+)
+
+# Use with SharePointClient
+with SharePointClient(config) as client:
+    files = client.list_excel_files("Documents", "General/Reports")
+```
+
+#### MSAL Dictionary Configuration
+
+```python
+from fetchpoint import SharePointClient, create_msal_config_from_dict
+
+config = create_msal_config_from_dict({
+    "client_id": "your-azure-app-client-id",
+    "client_secret": "your-azure-app-secret",
+    "tenant_id": "your-azure-tenant-id",
+    "sharepoint_url": "https://company.sharepoint.com/sites/yoursite"
+})
+
+client = SharePointClient(config)
+```
+
+#### Direct MSAL Context Creation
+
+```python
+from fetchpoint import create_sharepoint_context, SharePointMSALConfig
+
+# Create configuration model directly
+config = SharePointMSALConfig(
+    client_id="your-azure-app-client-id",
+    client_secret="your-azure-app-secret",
+    tenant_id="your-azure-tenant-id",
+    sharepoint_url="https://company.sharepoint.com/sites/yoursite"
+)
+
+# Create authenticated context
+context = create_sharepoint_context(config)
+```
+
+### Method 4: Environment Variables (Deprecated)
+
+> **⚠️ Deprecated**: Environment variable configuration is deprecated. Use explicit configuration methods above for better security and clarity.
 
 ```bash
 # Required
@@ -90,12 +146,11 @@ SHAREPOINT_PASSWORD=your_password
 # Optional
 SHAREPOINT_TIMEOUT_SECONDS=30
 SHAREPOINT_MAX_FILE_SIZE_MB=100
-SHAREPOINT_AUTH_TYPE=federated
 SHAREPOINT_SESSION_TIMEOUT=3600
 SHAREPOINT_LOG_LEVEL=INFO
 ```
 
-**Important**: `SHAREPOINT_URL` is optional when using explicit configuration methods. When using environment variables, it's required and specifies the complete SharePoint site URL.
+**Note**: This method is maintained for backward compatibility but should be avoided in new projects. Use the explicit configuration methods (Methods 1-3) for better security and configuration management.
 
 ## API Reference
 

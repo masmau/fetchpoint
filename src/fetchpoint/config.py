@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from pydantic import SecretStr
 
-from .models import SharePointAuthConfig
+from .models import SharePointAuthConfig, SharePointMSALConfig
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -153,6 +153,124 @@ def create_config_from_dict(config_dict: dict[str, Any]) -> SharePointAuthConfig
         sharepoint_url=config_dict["sharepoint_url"],
         timeout_seconds=config_dict.get("timeout_seconds"),
         max_file_size_mb=config_dict.get("max_file_size_mb"),
+    )
+
+
+def create_sharepoint_msal_config(
+    tenant_id: str,
+    client_id: str,
+    client_secret: str,
+    sharepoint_url: str,
+    timeout_seconds: Optional[int] = None,
+    max_file_size_mb: Optional[int] = None,
+) -> SharePointMSALConfig:
+    """
+    Create SharePoint MSAL configuration with explicit parameters.
+
+    Args:
+        tenant_id: Azure AD tenant ID
+        client_id: Azure AD application (client) ID
+        client_secret: Azure AD client secret
+        sharepoint_url: SharePoint site URL
+        timeout_seconds: Connection timeout in seconds (default: 30)
+        max_file_size_mb: Maximum file size limit in MB (default: 100)
+
+    Returns:
+        SharePointMSALConfig: Validated MSAL configuration object
+
+    Raises:
+        ValueError: If required parameters are missing or invalid
+
+    Example:
+        config = create_sharepoint_msal_config(
+            tenant_id="12345678-1234-1234-1234-123456789012",
+            client_id="87654321-4321-4321-4321-210987654321",
+            client_secret="your-client-secret",
+            sharepoint_url="https://example.sharepoint.com"
+        )
+    """
+    logger.debug("Creating SharePoint MSAL configuration with provided parameters")
+
+    # Use provided values or defaults
+    final_timeout = timeout_seconds if timeout_seconds is not None else DEFAULT_TIMEOUT_SECONDS
+    final_max_size = max_file_size_mb if max_file_size_mb is not None else DEFAULT_MAX_FILE_SIZE_MB
+
+    # Create configuration with all parameters
+    config = SharePointMSALConfig(
+        tenant_id=tenant_id,
+        client_id=client_id,
+        client_secret=SecretStr(client_secret),  # Convert to SecretStr explicitly
+        sharepoint_url=sharepoint_url,
+        timeout_seconds=final_timeout,
+        max_file_size_mb=final_max_size,
+    )
+
+    # Log successful configuration creation with masked sensitive values
+    _log_msal_config_loading(config)
+
+    return config
+
+
+def create_msal_config_from_dict(config_dict: dict[str, Any]) -> SharePointMSALConfig:
+    """
+    Create SharePoint MSAL configuration from a dictionary.
+
+    Args:
+        config_dict: Dictionary with MSAL configuration parameters
+            Required keys: tenant_id, client_id, client_secret, sharepoint_url
+            Optional keys: timeout_seconds, max_file_size_mb
+
+    Returns:
+        SharePointMSALConfig: Validated MSAL configuration object
+
+    Raises:
+        ValueError: If required parameters are missing or invalid
+
+    Example:
+        config = create_msal_config_from_dict({
+            "tenant_id": "12345678-1234-1234-1234-123456789012",
+            "client_id": "87654321-4321-4321-4321-210987654321",
+            "client_secret": "your-client-secret",
+            "sharepoint_url": "https://example.sharepoint.com",
+            "timeout_seconds": 60,
+            "max_file_size_mb": 200
+        })
+    """
+    logger.debug("Creating SharePoint MSAL configuration from dictionary")
+
+    # Extract required parameters
+    required_keys = ["tenant_id", "client_id", "client_secret", "sharepoint_url"]
+    missing_keys = [key for key in required_keys if key not in config_dict]
+
+    if missing_keys:
+        raise ValueError(f"Missing required MSAL parameters: {', '.join(missing_keys)}")
+
+    # Create configuration using the main factory function
+    return create_sharepoint_msal_config(
+        tenant_id=config_dict["tenant_id"],
+        client_id=config_dict["client_id"],
+        client_secret=config_dict["client_secret"],
+        sharepoint_url=config_dict["sharepoint_url"],
+        timeout_seconds=config_dict.get("timeout_seconds"),
+        max_file_size_mb=config_dict.get("max_file_size_mb"),
+    )
+
+
+def _log_msal_config_loading(config: SharePointMSALConfig) -> None:
+    """
+    Log MSAL configuration details with sensitive values masked.
+
+    Args:
+        config: SharePoint MSAL configuration to log
+    """
+    logger.info("SharePoint MSAL configuration loaded successfully")
+    logger.debug(
+        "MSAL configuration details: tenant=%s, client_id=%s, url=%s, timeout=%ds, max_file_size=%dMB",
+        _mask_sensitive_value(config.tenant_id),
+        _mask_sensitive_value(config.client_id),
+        config.sharepoint_url,
+        config.timeout_seconds,
+        config.max_file_size_mb,
     )
 
 

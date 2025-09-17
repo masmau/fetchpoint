@@ -60,7 +60,7 @@ class TestSharePointClientExcel:
 
         return excel_buffer.getvalue()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_content_success(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, sample_excel_bytes: bytes
     ) -> None:
@@ -89,7 +89,7 @@ class TestSharePointClientExcel:
         assert result == sample_excel_bytes
         mock_file_item.get_content.assert_called_once()
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_content_not_connected(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error when client is not connected."""
         client = SharePointClient(mock_config)
@@ -98,7 +98,7 @@ class TestSharePointClientExcel:
         with pytest.raises(ConnectionError, match="Not connected to SharePoint"):
             client.get_file_content(library="Documents", path=["folder", "test.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_content_file_not_found(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error when file is not found."""
         mock_context = MagicMock()
@@ -112,7 +112,7 @@ class TestSharePointClientExcel:
             with pytest.raises(FileNotFoundError, match="File not found: folder/test.xlsx"):
                 client.get_file_content(library="Documents", path=["folder", "test.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_content_size_limit_exceeded(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig
     ) -> None:
@@ -132,7 +132,7 @@ class TestSharePointClientExcel:
             with pytest.raises(FileSizeLimitError, match="File size 60.0MB exceeds limit of 50MB"):
                 client.get_file_content(library="Documents", path=["folder", "large_file.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_file_content_empty_content(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error when file content is empty."""
         mock_context = MagicMock()
@@ -154,7 +154,7 @@ class TestSharePointClientExcel:
             with pytest.raises(FileDownloadError, match="File content is empty"):
                 client.get_file_content(library="Documents", path=["folder", "empty.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_success(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, sample_excel_bytes: bytes
     ) -> None:
@@ -176,7 +176,7 @@ class TestSharePointClientExcel:
         assert result[0]["Age"] == 25
         assert result[0]["Department"] == "IT"
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_with_column_mapping(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, sample_excel_bytes: bytes
     ) -> None:
@@ -201,7 +201,7 @@ class TestSharePointClientExcel:
         assert "Department" in result[0]  # Unmapped column should remain
         assert result[0]["employee_name"] == "Alice"
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_specific_sheet(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, multi_sheet_excel_bytes: bytes
     ) -> None:
@@ -224,7 +224,7 @@ class TestSharePointClientExcel:
         assert result[0]["Employee"] == "John"
         assert result[0]["Salary"] == 50000
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_invalid_excel(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error handling for invalid Excel content."""
         mock_context = MagicMock()
@@ -241,7 +241,7 @@ class TestSharePointClientExcel:
             with pytest.raises(ValueError, match="Error processing Excel file"):
                 client.read_excel_content(library="Documents", path=["data", "invalid.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_excel_sheet_names_success(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, multi_sheet_excel_bytes: bytes
     ) -> None:
@@ -261,7 +261,7 @@ class TestSharePointClientExcel:
         assert "Products" in result
         assert "Employees" in result
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_excel_sheet_names_invalid_excel(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error handling for invalid Excel when getting sheet names."""
         mock_context = MagicMock()
@@ -277,7 +277,7 @@ class TestSharePointClientExcel:
             with pytest.raises(ValueError, match="Error reading Excel file sheets"):
                 client.get_excel_sheet_names(library="Documents", path=["data", "invalid.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_not_connected(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error when client is not connected during Excel reading."""
         client = SharePointClient(mock_config)
@@ -286,7 +286,7 @@ class TestSharePointClientExcel:
         with pytest.raises(ConnectionError, match="Not connected to SharePoint"):
             client.read_excel_content(library="Documents", path=["data", "test.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_get_excel_sheet_names_not_connected(self, mock_auth: MagicMock, mock_config: SharePointAuthConfig) -> None:
         """Test error when client is not connected during sheet name retrieval."""
         client = SharePointClient(mock_config)
@@ -295,7 +295,7 @@ class TestSharePointClientExcel:
         with pytest.raises(ConnectionError, match="Not connected to SharePoint"):
             client.get_excel_sheet_names(library="Documents", path=["data", "test.xlsx"])
 
-    @patch("fetchpoint.client.create_authenticated_context")
+    @patch("fetchpoint.client.create_sharepoint_context")
     def test_read_excel_content_with_all_options(
         self, mock_auth: MagicMock, mock_config: SharePointAuthConfig, sample_excel_bytes: bytes
     ) -> None:

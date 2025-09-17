@@ -8,14 +8,14 @@ follows a stateless design with comprehensive error handling and logging.
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from office365.sharepoint.client_context import ClientContext  # type: ignore[import-untyped]
     from office365.sharepoint.folder import Folder  # type: ignore[import-untyped]
 
-from .authenticator import create_authenticated_context
-from .config import SharePointAuthConfig, create_config_from_dict, load_sharepoint_paths
+from .auth_factory import create_sharepoint_context
+from .config import create_config_from_dict, load_sharepoint_paths
 from .exceptions import ConnectionError, FileDownloadError, FileNotFoundError, FileSizeLimitError, PermissionError
 from .file_handler import (
     create_file_info,
@@ -23,7 +23,7 @@ from .file_handler import (
     list_files_in_library,
     list_folders_in_library,
 )
-from .models import FileInfo
+from .models import FileInfo, SharePointAuthConfig, SharePointMSALConfig
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -275,37 +275,47 @@ class SharePointClient:
     """
     Main FetchPoint client class for SharePoint operations.
 
-    Provides read-only access to SharePoint files with authentication management
-    and context manager support for proper resource cleanup.
+    Supports both legacy UserCredential and modern MSAL authentication
+    by accepting either SharePointAuthConfig or SharePointMSALConfig.
+    The client automatically detects the authentication method and
+    uses the appropriate provider.
 
-    Example:
-        # Using explicit configuration
-        config = SharePointAuthConfig(
+    Examples:
+        # Legacy authentication
+        legacy_config = SharePointAuthConfig(
             username="user@example.com",
             password="password",
             sharepoint_url="https://example.sharepoint.com"
         )
-        client = SharePointClient(config)
+        with SharePointClient(legacy_config) as client:
+            files = client.list_excel_files("Documents", "Reports")
 
-        # Using dictionary configuration
+        # MSAL authentication
+        msal_config = SharePointMSALConfig(
+            tenant_id="12345678-1234-1234-1234-123456789012",
+            client_id="87654321-4321-4321-4321-210987654321",
+            client_secret="your-client-secret",
+            sharepoint_url="https://example.sharepoint.com"
+        )
+        with SharePointClient(msal_config) as client:
+            files = client.list_excel_files("Documents", "Reports")
+
+        # Using dictionary configuration (legacy)
         client = SharePointClient.from_dict({
             "username": "user@example.com",
             "password": "password",
             "sharepoint_url": "https://example.sharepoint.com"
         })
-
-        # Using context manager
-        with SharePointClient(config) as client:
-            # Operations here
-            pass
     """
 
-    def __init__(self, config: SharePointAuthConfig, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(
+        self, config: Union[SharePointAuthConfig, SharePointMSALConfig], logger: Optional[logging.Logger] = None
+    ) -> None:
         """
         Initialize SharePoint client with explicit configuration.
 
         Args:
-            config: SharePoint configuration (required)
+            config: SharePoint configuration (SharePointAuthConfig or SharePointMSALConfig)
             logger: Optional logger instance for custom logging
 
         Raises:
@@ -317,7 +327,10 @@ class SharePointClient:
         self.logger.debug("Initializing SharePoint client")
 
         if not config:
-            raise ValueError("Configuration is required. Use SharePointAuthConfig or SharePointClient.from_dict()")
+            raise ValueError(
+                "Configuration is required. Use SharePointAuthConfig, SharePointMSALConfig or "
+                "SharePointClient.from_dict()"
+            )
 
         self._config = config
         self._context: Optional["ClientContext"] = None
@@ -367,8 +380,8 @@ class SharePointClient:
         self.logger.info("Connecting to SharePoint: %s", self._config.sharepoint_url)
 
         try:
-            # Create authenticated context using the authenticator
-            self._context = create_authenticated_context(self._config)
+            # Create authenticated context using the factory (supports both auth methods)
+            self._context = create_sharepoint_context(self._config)
             self._is_connected = True
 
             self.logger.info("Successfully connected to SharePoint")
@@ -437,12 +450,12 @@ class SharePointClient:
         return self._is_connected
 
     @property
-    def config(self) -> SharePointAuthConfig:
+    def config(self) -> Union[SharePointAuthConfig, SharePointMSALConfig]:
         """
         Get the current SharePoint configuration.
 
         Returns:
-            SharePointAuthConfig: Current configuration object
+            Union[SharePointAuthConfig, SharePointMSALConfig]: Current configuration object
         """
         return self._config
 
@@ -581,14 +594,14 @@ class SharePointClient:
         Returns:
             str: Detailed representation with masked sensitive information
         """
-        # Mask the username for security
-        masked_username = self._config.username[:3] + "***" if len(self._config.username) > 3 else "***"
+        # Mask the username/tenant for security
+        if isinstance(self._config, SharePointAuthConfig):
+            masked_id = self._config.username[:3] + "***" if len(self._config.username) > 3 else "***"
+        else:  # SharePointMSALConfig
+            masked_id = self._config.tenant_id[:8] + "***" if len(self._config.tenant_id) > 8 else "***"
 
         return (
-            f"SharePointClient("
-            f"username={masked_username}, "
-            f"url={self._config.sharepoint_url}, "
-            f"connected={self._is_connected})"
+            f"SharePointClient(auth_id={masked_id}, url={self._config.sharepoint_url}, connected={self._is_connected})"
         )
 
     def __str__(self) -> str:
@@ -598,15 +611,18 @@ class SharePointClient:
         Returns:
             str: Simple string representation with masked username and connection status
         """
-        # Mask the username for security - same logic as __repr__
-        masked_username = self._config.username[:3] + "***" if len(self._config.username) > 3 else "***"
+        # Mask the username/tenant for security - same logic as __repr__
+        if isinstance(self._config, SharePointAuthConfig):
+            masked_id = self._config.username[:3] + "***" if len(self._config.username) > 3 else "***"
+        else:  # SharePointMSALConfig
+            masked_id = self._config.tenant_id[:8] + "***" if len(self._config.tenant_id) > 8 else "***"
 
         status = "connected" if self._is_connected else "disconnected"
 
         # Extract domain from URL for display
         url_domain = self._config.sharepoint_url.replace("https://", "").replace("http://", "").split("/")[0]
 
-        return f"SharePointClient (username={masked_username}, url={url_domain}, connected={status})"
+        return f"SharePointClient (auth_id={masked_id}, url={url_domain}, connected={status})"
 
     def list_excel_files(self, library_name: str = "Documents", folder_path: Optional[str] = None) -> list[str]:
         """

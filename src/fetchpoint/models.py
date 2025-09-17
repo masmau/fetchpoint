@@ -14,6 +14,13 @@ from typing import Any, Callable, Optional, Union
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 
+class AuthMethod(str, Enum):
+    """Supported authentication methods."""
+
+    LEGACY = "legacy"  # UserCredential authentication
+    MSAL = "msal"  # MSAL client credentials authentication
+
+
 class FileType(str, Enum):
     """Supported Excel file extensions for SharePoint operations."""
 
@@ -149,6 +156,114 @@ class SharePointAuthConfig(BaseModel):
         return cls(
             username=str(config_dict["username"]),
             password=SecretStr(str(config_dict["password"])),
+            sharepoint_url=str(config_dict["sharepoint_url"]),
+            timeout_seconds=int(config_dict.get("timeout_seconds", 30)),
+            max_file_size_mb=int(config_dict.get("max_file_size_mb", 100)),
+        )
+
+
+class SharePointMSALConfig(BaseModel):
+    """
+    Configuration model for SharePoint MSAL authentication.
+
+    Supports app-only authentication using Azure AD client credentials.
+    """
+
+    # Required MSAL parameters
+    tenant_id: str = Field(..., description="Azure AD tenant ID")
+    client_id: str = Field(..., description="Azure AD application (client) ID")
+    client_secret: SecretStr = Field(..., description="Azure AD client secret")
+    sharepoint_url: str = Field(..., description="SharePoint site URL")
+
+    # Optional connection parameters with defaults
+    timeout_seconds: int = Field(default=30, description="Connection timeout in seconds", ge=5, le=300)
+    max_file_size_mb: int = Field(default=100, description="Maximum file size limit in MB", ge=1, le=500)
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, v: str) -> str:
+        """Validate Azure AD tenant ID format."""
+        if not v or not v.strip():
+            raise ValueError("Tenant ID cannot be empty")
+
+        # Basic UUID format validation
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        if not re.match(uuid_pattern, v.strip().lower()):
+            raise ValueError("Tenant ID must be a valid UUID format")
+
+        return v.strip().lower()
+
+    @field_validator("client_id")
+    @classmethod
+    def validate_client_id(cls, v: str) -> str:
+        """Validate Azure AD client ID format."""
+        if not v or not v.strip():
+            raise ValueError("Client ID cannot be empty")
+
+        # Basic UUID format validation
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        if not re.match(uuid_pattern, v.strip().lower()):
+            raise ValueError("Client ID must be a valid UUID format")
+
+        return v.strip().lower()
+
+    @field_validator("client_secret")
+    @classmethod
+    def convert_client_secret_to_secret_str(cls, v: Union[str, SecretStr]) -> SecretStr:
+        """Convert string client secrets to SecretStr for security."""
+        if isinstance(v, str):
+            return SecretStr(v)
+        return v
+
+    @field_validator("sharepoint_url")
+    @classmethod
+    def validate_sharepoint_url(cls, v: str) -> str:
+        """Validate SharePoint URL format."""
+        if not v or not v.strip():
+            raise ValueError("SharePoint URL cannot be empty")
+        if not v.startswith(("https://", "http://")):
+            raise ValueError("SharePoint URL must start with https:// or http://")
+        if not v.lower().endswith(".sharepoint.com") and "sharepoint" not in v.lower():
+            raise ValueError("URL must be a valid SharePoint URL")
+        return v.rstrip("/")
+
+    @classmethod
+    def from_dict(cls, config_dict: dict[str, Union[str, int]]) -> "SharePointMSALConfig":
+        """
+        Create MSAL configuration from a dictionary.
+
+        Args:
+            config_dict: Dictionary with configuration parameters
+                Required keys: tenant_id, client_id, client_secret, sharepoint_url
+                Optional keys: timeout_seconds, max_file_size_mb
+
+        Returns:
+            SharePointMSALConfig instance
+
+        Raises:
+            ValueError: If required parameters are missing
+
+        Example:
+            config = SharePointMSALConfig.from_dict({
+                "tenant_id": "12345678-1234-1234-1234-123456789012",
+                "client_id": "87654321-4321-4321-4321-210987654321",
+                "client_secret": "your-client-secret",
+                "sharepoint_url": "https://example.sharepoint.com",
+                "timeout_seconds": 60,
+                "max_file_size_mb": 200
+            })
+        """
+        # Validate required keys
+        required_keys = {"tenant_id", "client_id", "client_secret", "sharepoint_url"}
+        missing_keys = required_keys - set(config_dict.keys())
+        if missing_keys:
+            raise ValueError(f"Missing required MSAL configuration keys: {', '.join(missing_keys)}")
+
+        # Create instance with all parameters
+        return cls(
+            tenant_id=str(config_dict["tenant_id"]),
+            client_id=str(config_dict["client_id"]),
+            client_secret=SecretStr(str(config_dict["client_secret"])),
             sharepoint_url=str(config_dict["sharepoint_url"]),
             timeout_seconds=int(config_dict.get("timeout_seconds", 30)),
             max_file_size_mb=int(config_dict.get("max_file_size_mb", 100)),

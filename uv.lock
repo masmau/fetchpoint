@@ -322,6 +322,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "httpx" },
+    { name = "msal" },
     { name = "office365-rest-python-client" },
     { name = "openpyxl" },
     { name = "pandas" },
@@ -345,6 +346,7 @@ test = [
 requires-dist = [
     { name = "click", specifier = ">=8.2.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "msal", specifier = ">=1.33.0" },
     { name = "office365-rest-python-client", specifier = ">=2.6.2" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.3.0" },

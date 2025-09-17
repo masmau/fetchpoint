@@ -5,11 +5,14 @@ Provides secure, read-only access to SharePoint document libraries with federate
 authentication support and comprehensive error handling.
 """
 
+from .auth_factory import create_sharepoint_context
 from .authenticator import create_authenticated_context
 from .client import SharePointClient
 from .config import (
     create_config_from_dict,
+    create_msal_config_from_dict,
     create_sharepoint_config,
+    create_sharepoint_msal_config,
     # Deprecated - for backward compatibility only
     load_sharepoint_config,
 )
@@ -26,7 +29,8 @@ from .exceptions import (
     PermissionError,
     SharePointError,
 )
-from .models import ColumnMapping, ExcelData, FileInfo, FileType, SharePointAuthConfig
+from .models import AuthMethod, ColumnMapping, ExcelData, FileInfo, FileType, SharePointAuthConfig, SharePointMSALConfig
+from .msal_authenticator import build_msal_token_callback, create_msal_authenticated_context
 
 __all__ = [
     # Main API
@@ -34,14 +38,23 @@ __all__ = [
     "SharePointAuthConfig",
     "create_sharepoint_config",
     "create_config_from_dict",
+    # MSAL Authentication (new)
+    "SharePointMSALConfig",
+    "AuthMethod",
+    "create_sharepoint_msal_config",
+    "create_msal_config_from_dict",
+    "create_msal_authenticated_context",
+    "build_msal_token_callback",
+    "create_sharepoint_context",  # Factory function for both auth methods
     # File operations
     "FileInfo",
     "FileType",
     # Excel operations
     "ExcelData",
     "ColumnMapping",
-    # Authentication
+    # Authentication (legacy)
     "create_authenticated_context",
+    "load_sharepoint_config",  # Deprecated - for backward compatibility only
     # Exceptions
     "SharePointError",
     "AuthenticationError",
@@ -54,8 +67,6 @@ __all__ = [
     "PermissionError",
     "LibraryNotFoundError",
     "InvalidFileTypeError",
-    # Deprecated
-    "load_sharepoint_config",
 ]
 
-__version__ = "0.0.3"
+__version__ = "0.1.0"

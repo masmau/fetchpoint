@@ -19,7 +19,7 @@ else:
         from office365.sharepoint.client_context import ClientContext  # type: ignore[import-untyped]
     except ImportError as e:
         raise ImportError(
-            "office365-rest-python-client is required. Install with: pip install office365-rest-python-client>=2.5.0"
+            "office365-rest-python-client is required. Install with: uv add 'office365-rest-python-client>=2.6.2'"
         ) from e
 
 from .exceptions import AuthenticationError, FederatedAuthError
