@@ -62,8 +62,8 @@ config = create_sharepoint_config(
     username="user@company.com",           # Required: SharePoint username (email)
     password="your_password",              # Required: User password
     sharepoint_url="https://company.sharepoint.com/sites/yoursite",  # Required: SharePoint site URL
-    timeout_seconds=30,                    # Optional: Connection timeout (default: 30)
-    max_file_size_mb=100                   # Optional: File size limit (default: 100)
+    timeout_seconds=30,                    # Optional: Connection timeout (default: 30, range: 5-300)
+    max_file_size_mb=100                   # Optional: File size limit (default: 100, range: 1-500)
 )
 ```
 
@@ -88,12 +88,12 @@ from fetchpoint import SharePointClient, create_sharepoint_msal_config
 
 # Create MSAL configuration
 config = create_sharepoint_msal_config(
+    tenant_id="your-azure-tenant-id",            # Required: Azure AD Tenant ID
     client_id="your-azure-app-client-id",        # Required: Azure AD Application (client) ID
     client_secret="your-azure-app-secret",       # Required: Azure AD Application secret
-    tenant_id="your-azure-tenant-id",            # Required: Azure AD Tenant ID
     sharepoint_url="https://company.sharepoint.com/sites/yoursite",  # Required: SharePoint site URL
-    timeout_seconds=30,                          # Optional: Connection timeout (default: 30)
-    max_file_size_mb=100                         # Optional: File size limit (default: 100)
+    timeout_seconds=30,                          # Optional: Connection timeout (default: 30, range: 5-300)
+    max_file_size_mb=100                         # Optional: File size limit (default: 100, range: 1-500)
 )
 
 # Use with SharePointClient
@@ -107,9 +107,9 @@ with SharePointClient(config) as client:
 from fetchpoint import SharePointClient, create_msal_config_from_dict
 
 config = create_msal_config_from_dict({
+    "tenant_id": "your-azure-tenant-id",
     "client_id": "your-azure-app-client-id",
     "client_secret": "your-azure-app-secret",
-    "tenant_id": "your-azure-tenant-id",
     "sharepoint_url": "https://company.sharepoint.com/sites/yoursite"
 })
 
@@ -123,9 +123,9 @@ from fetchpoint import create_sharepoint_context, SharePointMSALConfig
 
 # Create configuration model directly
 config = SharePointMSALConfig(
+    tenant_id="your-azure-tenant-id",
     client_id="your-azure-app-client-id",
     client_secret="your-azure-app-secret",
-    tenant_id="your-azure-tenant-id",
     sharepoint_url="https://company.sharepoint.com/sites/yoursite"
 )
 

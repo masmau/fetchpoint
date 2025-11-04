@@ -5,6 +5,7 @@ Provides secure, read-only access to SharePoint document libraries with federate
 authentication support and comprehensive error handling.
 """
 
+from . import diagnostics
 from .auth_factory import create_sharepoint_context
 from .authenticator import create_authenticated_context
 from .client import SharePointClient
@@ -55,6 +56,8 @@ __all__ = [
     # Authentication (legacy)
     "create_authenticated_context",
     "load_sharepoint_config",  # Deprecated - for backward compatibility only
+    # Diagnostics
+    "diagnostics",
     # Exceptions
     "SharePointError",
     "AuthenticationError",
@@ -69,4 +72,4 @@ __all__ = [
     "InvalidFileTypeError",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.0.5"
