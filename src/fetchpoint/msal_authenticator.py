@@ -6,6 +6,7 @@ with client credentials flow for app-only access to SharePoint Online.
 """
 
 import logging
+import re
 from typing import TYPE_CHECKING, Callable
 from urllib.parse import urlparse
 
@@ -172,9 +173,66 @@ def _mask_tenant_id(tenant_id: str) -> str:
     return tenant_id[:8] + "***"
 
 
+def _extract_url_from_error(error_str: str) -> str | None:
+    """
+    Extract URL from error string.
+
+    Looks for patterns like 'for url: https://...' or 'url: https://...'
+    in error messages.
+
+    Args:
+        error_str: Error string that may contain a URL
+
+    Returns:
+        Extracted URL or None if not found
+    """
+    # Try to find URL patterns in the error string
+    patterns = [
+        r"for url:\s*(https?://[^\s'\"]+)",  # 'for url: https://...'
+        r"url:\s*(https?://[^\s'\"]+)",  # 'url: https://...'
+        r"(https?://[^\s'\"]+/_api/[^\s'\"]+)",  # Direct SharePoint API URLs
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, error_str, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
+
+
+def _extract_status_code(error_str: str) -> str | None:
+    """
+    Extract HTTP status code from error string.
+
+    Args:
+        error_str: Error string that may contain a status code
+
+    Returns:
+        Status code string (e.g., "401", "403") or None if not found
+    """
+    # Look for HTTP status codes
+    patterns = [
+        r"(\d{3})\s+(?:client\s+)?error",  # '401 client error'
+        r"status\s+(?:code\s+)?(\d{3})",  # 'status code 401'
+        r"http\s+(\d{3})",  # 'HTTP 401'
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, error_str, re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    return None
+
+
 def _map_msal_authentication_error(error: Exception, tenant_id: str, site_url: str) -> Exception:
     """
     Map MSAL authentication errors to appropriate custom exceptions.
+
+    Distinguishes between:
+    - Token acquisition failures (MSAL/Azure AD issues)
+    - SharePoint authorization failures (token rejected by SharePoint)
 
     Args:
         error: Original exception from MSAL authentication
@@ -185,22 +243,37 @@ def _map_msal_authentication_error(error: Exception, tenant_id: str, site_url: s
         Exception: Mapped custom exception
     """
     error_str = str(error).lower()
+    error_str_orig = str(error)  # Preserve original case for URL extraction
 
-    # Handle Azure AD specific errors
+    # Handle Azure AD specific errors (true MSAL authentication failures)
     if "aadsts" in error_str:
         return _create_msal_specific_error(error_str, tenant_id, site_url)
 
-    # Handle permission/authorization errors
-    if "403" in error_str or "forbidden" in error_str:
-        return _create_msal_permission_error(tenant_id, site_url)
+    # Distinguish between authorization (SharePoint rejects token) and authentication (can't get token)
+    # If error contains SharePoint API URL, it means token was acquired but SharePoint rejected it
+    sharepoint_api_indicators = ["_api/", "sharepoint.com"]
+    is_sharepoint_authorization_error = any(indicator in error_str for indicator in sharepoint_api_indicators)
 
-    # Handle general authentication errors
+    # Handle 401/403 errors
+    if "403" in error_str or "forbidden" in error_str:
+        if is_sharepoint_authorization_error:
+            # SharePoint rejected the token (authorization failure)
+            return _create_sharepoint_authorization_error(error_str_orig, tenant_id, site_url)
+        else:
+            # Generic permission error
+            return _create_msal_permission_error(tenant_id, site_url)
+
     if "401" in error_str or "unauthorized" in error_str:
-        return _create_msal_general_auth_error(error_str, tenant_id, site_url)
+        if is_sharepoint_authorization_error:
+            # SharePoint rejected the token (authorization failure)
+            return _create_sharepoint_authorization_error(error_str_orig, tenant_id, site_url)
+        else:
+            # Token acquisition failure (authentication failure)
+            return _create_msal_general_auth_error(error_str_orig, tenant_id, site_url)
 
     # Handle network/connection errors
     if "timeout" in error_str or "connection" in error_str:
-        return _create_msal_connection_error(error_str, site_url)
+        return _create_msal_connection_error(error_str_orig, site_url)
 
     # Default to general authentication error
     return AuthenticationError(f"MSAL authentication failed: {error}", tenant_id=tenant_id, site_url=site_url)
@@ -234,10 +307,69 @@ def _create_msal_permission_error(tenant_id: str, site_url: str) -> Authenticati
     )
 
 
+def _create_sharepoint_authorization_error(error_str: str, tenant_id: str, site_url: str) -> AuthenticationError:
+    """
+    Create SharePoint authorization error with clear URL and status display.
+
+    This error occurs when token acquisition succeeded but SharePoint rejected the token.
+    """
+    # Extract URL and status code from error
+    url = _extract_url_from_error(error_str)
+    status_code = _extract_status_code(error_str)
+
+    # Build error message with clear structure
+    message_parts = ["SharePoint Authorization Failed"]
+
+    if status_code:
+        if status_code == "401":
+            message_parts.append(f"({status_code} Unauthorized)")
+        elif status_code == "403":
+            message_parts.append(f"({status_code} Forbidden)")
+        else:
+            message_parts.append(f"(HTTP {status_code})")
+
+    message = " ".join(message_parts) + "\n"
+
+    # Show the resource URL prominently
+    if url:
+        message += f"\nResource: {url}"
+    else:
+        message += f"\nSite: {site_url}"
+
+    if status_code:
+        message += f"\nStatus: {status_code}"
+
+    # Explain what happened
+    message += "\n\nWhat happened:"
+    message += "\n  ✅ Token acquired successfully from Azure AD"
+    message += "\n  ❌ SharePoint rejected the token when accessing the resource"
+
+    # Provide likely causes based on status code
+    message += "\n\nLikely causes:"
+    if status_code == "401":
+        message += "\n  • Sites.Selected permission requires explicit site configuration in Azure AD"
+        message += "\n  • Admin consent may still be propagating (wait 5-10 minutes)"
+        message += "\n  • App not granted access to this specific SharePoint site"
+        message += "\n  • Token audience mismatch (check SharePoint URL)"
+    elif status_code == "403":
+        message += "\n  • Insufficient permissions for this operation"
+        message += "\n  • App has read access but attempting write operation"
+        message += "\n  • Site-specific permissions not configured"
+    else:
+        message += "\n  • Verify app permissions in Azure AD"
+        message += "\n  • Check admin consent status"
+        message += "\n  • Ensure app has access to this SharePoint site"
+
+    # Include debug details
+    message += f"\n\nDebug details: {error_str}"
+
+    return AuthenticationError(message, tenant_id=tenant_id, site_url=site_url)
+
+
 def _create_msal_general_auth_error(error_str: str, tenant_id: str, site_url: str) -> AuthenticationError:
-    """Create general MSAL authentication error."""
+    """Create general MSAL authentication error (for actual token acquisition failures)."""
     return AuthenticationError(
-        f"MSAL authentication failed. Please verify your Azure AD configuration. Details: {error_str}",
+        f"MSAL token acquisition failed. Please verify your Azure AD configuration.\n\nDetails: {error_str}",
         tenant_id=tenant_id,
         site_url=site_url,
     )
@@ -245,7 +377,8 @@ def _create_msal_general_auth_error(error_str: str, tenant_id: str, site_url: st
 
 def _create_msal_connection_error(error_str: str, site_url: str) -> AuthenticationError:
     """Create MSAL connection-specific error."""
+    url = _extract_url_from_error(error_str) or site_url
     return AuthenticationError(
-        f"Connection failed during MSAL authentication. Please check network connectivity. Details: {error_str}",
+        f"Connection failed during MSAL authentication.\n\nTarget: {url}\n\nPlease check network connectivity.\n\nDetails: {error_str}",  # noqa: E501
         site_url=site_url,
     )

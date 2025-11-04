@@ -64,6 +64,9 @@ packages = ["src/fetchpoint"]
 [tool.hatch.version]
 path = "src/fetchpoint/__init__.py"
 
+[tool.uv]
+default-groups = ["dev", "test"]
+
 [dependency-groups]
 dev = [
   "pandas-stubs>=2.3.0.250703",
