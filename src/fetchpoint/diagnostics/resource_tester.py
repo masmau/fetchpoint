@@ -7,7 +7,7 @@ such as document libraries, folders, and files for permission validation.
 
 import time
 from enum import Enum
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 from pydantic import BaseModel, Field
@@ -180,20 +180,23 @@ class ResourceTester:
         # Build API endpoint based on resource type
         base_url = site_url.rstrip("/")
 
+        # URL-encode the server-relative URL to handle special characters (spaces, apostrophes, etc.)
+        encoded_url = quote(server_relative_url, safe="/")
+
         if resource_type in (ResourceType.FOLDER, ResourceType.LIBRARY):
             # Use GetFolderByServerRelativeUrl for folders/libraries
-            api_path = f"_api/web/GetFolderByServerRelativeUrl('{server_relative_url}')"
+            api_path = f"_api/web/GetFolderByServerRelativeUrl('{encoded_url}')"
         elif resource_type == ResourceType.FILE:
             # Use GetFileByServerRelativeUrl for files
-            api_path = f"_api/web/GetFileByServerRelativeUrl('{server_relative_url}')"
+            api_path = f"_api/web/GetFileByServerRelativeUrl('{encoded_url}')"
         else:
             # Default to folder
-            api_path = f"_api/web/GetFolderByServerRelativeUrl('{server_relative_url}')"
+            api_path = f"_api/web/GetFolderByServerRelativeUrl('{encoded_url}')"
 
         api_url = f"{base_url}/{api_path}"
 
         # Prepare headers
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json;odata=verbose"}
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json;odata=minimalmetadata"}
 
         try:
             start_time = time.time()

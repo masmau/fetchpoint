@@ -95,7 +95,7 @@ class APITester:
         url = f"{base_url}/{endpoint_path}"
 
         # Prepare headers
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json;odata=verbose"}
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json;odata=minimalmetadata"}
 
         # Determine HTTP method
         method = "POST" if endpoint_type == EndpointType.CONTEXTINFO else "GET"
